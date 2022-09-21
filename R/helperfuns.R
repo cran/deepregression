@@ -1,29 +1,3 @@
-# function that extracts variables from special symbols in formulas
-extract_from_special <- function(x)
-{
-  if(length(x)>1) return(sapply(x, extract_from_special))
-  # remove c()
-  if(grepl("c\\(",x))
-  {
-    x <- gsub("c\\([0-9]+ *, *[0-9]+\\)","", x)
-  }
-  #
-  trimws(
-    strsplit(regmatches(x,
-                        gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]],
-             split = ",")[[1]]
-  )
-}
-
-
-remove_brackets <- function(x)
-{
-  
-  if(grepl("^\\(", x))
-    return(gsub("^\\(","",gsub("\\)$","",x))) else return(x)
-  
-}
-
 is_equal_not_null <- function(x,y)
 {
   
@@ -54,6 +28,94 @@ NCOL0 <- function(x)
   return(NCOL(x))
 }
 
+get_mod_names <- function(x)
+{
+  
+  sapply(x$model$layers,"[[","name")
+  
+}
+
+#' Function to return weight given model and name
+#'
+#' @param mod deepregression model
+#' @param name character
+#' @param partial_match logical; whether to also check for a partial match
+#' @export
+get_weight_by_opname <- function(mod, name, partial_match = FALSE)
+{
+  
+  lay <- get_layer_by_opname(mod, name, partial_match = partial_match)
+  wgts <- lay$weights
+  if(is.list(wgts) & length(wgts)==1)
+    return(as.matrix(wgts[[1]]))
+  return(wgts)
+  
+}
+
+#' Function to return layer given model and name
+#'
+#' @param mod deepregression model
+#' @param name character
+#' @param partial_match logical; whether to also check for a partial match
+#' @export
+get_layer_by_opname <- function(mod, name, partial_match = FALSE)
+{
+  
+  # names <- get_mod_names(mod)
+  w <- get_layernr_by_opname(mod, name, partial_match = partial_match)
+  if(length(w)==0)
+    stop("Cannot find specified ", name, " in model weights.")
+  return(mod$model$layers[[w]])
+  
+}
+
+#' Function to return layer numbers with trainable weights
+#'
+#' @param mod deepregression model
+#' @param logic logical; TRUE: return logical vector; FALSE (default) index
+#' @export
+get_layernr_trainable <- function(mod, logic = FALSE)
+{
+  
+  names <- get_mod_names(mod)
+  res <- (sapply(names, function(nm) 
+    length(mod$model$get_layer(
+      name = nm
+    )$trainable_weights)>0)
+  )
+  if(logic) return(res) else return(which(res))
+    
+}
+
+#' Function to return layer number given model and name
+#'
+#' @param mod deepregression model
+#' @param name character
+#' @param partial_match logical; whether to also check for a partial match
+#' @export
+get_layernr_by_opname <- function(mod, name, partial_match = FALSE)
+{
+  
+  names <- get_mod_names(mod)
+  if(partial_match){
+    w <- grep(name, names)
+    if(length(w)>1){
+      # try to rescue assuming partial match 
+      # is not referring to input
+      win <- grep("input", names)
+      w <- setdiff(w, win)
+      if(length(w)>1) stop("Given name yields ambigious results")
+    }
+  }else{
+    w <- which(name==names)
+  }
+  return(w)
+  
+}
+
+
+get_names_mod <- function(mod, which_param=1)
+  get_names_pfc(mod$init_params$parsed_formulas_contents[[which_param]])
 
 fac_to_int_representation <- function(data)
 {
@@ -178,10 +240,6 @@ unlist_order_preserving <- function(x)
 
 get_family_name <- function(dist) gsub(".*(^|/)(.*)/$", "\\2", dist$name)
 
-remove_intercept <- function(form) update(form, ~ 0 + . )
-
-frm_to_text <- function(form) Reduce(paste, deparse(form))
-
 train_together_ind <- function(train_together)
 {
 
@@ -206,20 +264,6 @@ sum_cols_smooth <- function(x)
   return(sum(sapply(x[byt], sum_cols_smooth)) +
            sum(sapply(x[!byt], function(y) NCOL(y[[1]]$X))))
 
-}
-
-
-convertfun_tf <- function(x) tf$constant(x, dtype="float32")
-
-mismatch_brackets <- function(x, logical=TRUE)
-{
-  
-  open_matches <- lengths(regmatches(x, gregexpr("\\{", x)))
-  close_matches <- lengths(regmatches(x, gregexpr("\\}", x)))
-  
-  if(logical) return(open_matches!=close_matches) else
-    return(c(open_matches, close_matches))
-  
 }
 
 remove_attr <- function(x)
@@ -261,100 +305,7 @@ get_X_lin_newdata <- function(linname, newdata)
   
 }
 
-
-# used in subnetwork_init
-make_valid_layername <- function(string)
-{
-  
-  gsub("[^a-zA-Z0-9/-]+","_",string)
-  
-}
-
-#### helper functions for processors
-
-makelayername <- function(term, param_nr, truncate = 30)
-{
-  
-  if(class(term)=="formula") term <- form2text(term)
-  return(paste0(strtrim(make_valid_layername(term), truncate), "_", param_nr))
-  
-}
-
-extractvar <- function(term)
-{
-  
-  all.vars(as.formula(paste0("~", term)))
-  
-}
-
-#' Extract value in term name
-#' 
-#' @param term character representing a formula term
-#' @param name character; the value to extract
-#' @param null_for_missing logical; if TRUE, returns NULL if argument is missing
-#' @return the value used for \code{name}
-#' @export
-#' @examples 
-#' extractval("s(a, la = 2)", "la")
-#' 
-extractval <- function(term, name, null_for_missing = FALSE)
-{
-  
-  if(is.character(term)) term <- as.formula(paste0("~", term))
-  inputs <- as.list(as.list(term)[[2]])[-1]
-  if(name %in% names(inputs)) return(inputs[[name]])
-  if(null_for_missing) return(NULL)
-  warning("Argument ", name, " not found. Setting it to some default.")
-  if(name=="df") return(NULL) else if(name=="la") return(0.1) else return(NULL)
-  
-}
-
-extractlen <- function(term, data)
-{
-  
-  vars <- extractvar(term)
-  if(is.list(data) & length(vars)==1) return(extractdim(data[[vars]]))
-  return(sum(sapply(vars, function(v) NCOL(data[v]))))
-  
-}
-
-extractdim <- function(x)
-{
-  
-  if(is.null(dim(x))) return(1L)
-  return(dim(x)[-1])
-  
-}
-
-form2text <- function(form)
-{
-  
-  return(gsub(" ","", (Reduce(paste, deparse(form)))))
-  
-}
-
-get_special <- function(term, specials)
-{
-  
-  sp <- attr(terms.formula(as.formula(paste0("~",term)), 
-                           specials = specials), "specials")
-  names(unlist(sp))
-  
-}
-
 get_names_pfc <- function(pfc) sapply(pfc, "[[", "term")
-
-#### used for the weight history
-coefkeras <- function(model)
-{
-  
-  layer_names <- sapply(model$layers, "[[", "name")
-  layers_names_structured <- layer_names[
-    grep("structured_", layer_names)
-  ]
-  unlist(sapply(layers_names_structured,
-                function(name) model$get_layer(name)$get_weights()[[1]]))
-}
 
 #### used in fit.deepregression
 WeightHistory <- R6::R6Class("WeightHistory",
@@ -364,33 +315,15 @@ WeightHistory <- R6::R6Class("WeightHistory",
                                
                                weights_last_layer = NULL,
                                
-                               on_epoch_end = function(batch, logs = list()) {
-                                 self$weights_last_layer <-
-                                   cbind(self$weights_last_layer,
-                                         coefkeras(self$model))
+                               on_epoch_end = function(epoch, logs = list()) {
+                                 self$weights_last_layer <- append(
+                                   self$weights_last_layer, list(self$model$get_weights())
+                                 )
                                }
                              ))
 
 
-#' Function to index tensors columns
-#' 
-#' @param A tensor
-#' @param start first index
-#' @param end last index (equals start index if NULL)
-#' @return sliced tensor
-#' @export
-#' 
-tf_stride_cols <- function(A, start, end=NULL)
-{
-  
-  if(is.null(end)) end <- start
-  return(
-    #tf$strided_slice(A, c(0L,as.integer(start-1)), c(tf$shape(A)[1], as.integer(end)))
-    tf$keras$layers$Lambda(function(x) x[,as.integer(start):as.integer(end)])(A)
-  )
-  
-  
-}
+
 
 #' Function to subset parsed formulas
 #' 
@@ -412,5 +345,92 @@ get_type_pfc <- function(pfc, type = NULL)
   to_return <- linear * ("linear" %in% type) + smooth * ("smooth" %in% type)
   
   return(to_return)
+  
+}
+
+#' Function to combine two penalties
+#' 
+#' @param penalties a list of penalties
+#' @param dims dimensions of the parameters to penalize
+#' @return a TensorFlow penalty combining the two penalties
+#' @export
+#' 
+combine_penalties <- function(penalties, dims)
+{
+  
+  types <- na.omit(sapply(penalties, function(p) if(is.null(p)) return(NA) else p$type))
+  output_dims <- na.omit(sapply(penalties, function(p) if(is.null(p)) return(NA) else p$dim))
+  null_pen <- sapply(penalties, is.null)
+  
+  if(any(output_dims>1))
+  {
+    
+    stop("Combined penalties for multi-output not implemented yet.")
+    
+  }else if(length(penalties)>2){
+   
+    stop("Combination of more than two penalties not implemented yet.")
+     
+  }else if(any(types=="l1")){
+    
+    stop("Combination with Lasso-Penalty not implemented yet.")
+    
+  }else{
+    
+    if(all(null_pen)) return(NULL)
+    if(any(null_pen)){
+      # no penalization in one direction
+      
+      existing_pen <- penalties[[which(!null_pen)]]
+      
+      if(existing_pen$type=="l2"){
+        
+        return(tf$keras$regularizers$l2(existing_pen$values))
+      
+      }else if(existing_pen$type=="spline"){
+        
+        return(squaredPenalty(P = kronecker(diag(rep(1, dims[[which(null_pen)]])),
+                                        existing_pen$values), 1))
+        
+      }else{
+        
+        stop("Not implemented yet.")
+        
+      }
+      
+    }else{
+      # both directions with penalties
+      if(any(types=="spline")){
+        
+        P1 <- penalties[[1]]$values
+        P2 <- penalties[[2]]$values
+        
+        return(squaredPenalty(
+          P = kronecker(P1, diag(rep(1, dims[2]))) + 
+            kronecker(diag(rep(1, dims[1])), P2),
+          strength = 1
+        ))
+        
+      }else if(all(types=="l2")){
+        
+        return(tf$keras$regularizers$l2(P1 + P2))
+        
+      }else{
+        
+        stop("Not implemented yet.")
+        
+      }
+      
+    }
+    
+  }
+}
+
+is_len_zero <- function(x) length(x)==0
+
+subset_list_and_df <- function(x, sel){
+  
+  if(is.data.frame(x)) return(x[sel, drop=FALSE])
+  return(x[sel])
   
 }

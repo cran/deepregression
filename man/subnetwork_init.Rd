@@ -9,11 +9,16 @@ subnetwork_init(
   deep_top = NULL,
   orthog_fun = orthog_tf,
   split_fun = split_model,
-  param_nr = 1
+  shared_layers = NULL,
+  param_nr = 1,
+  selectfun_in = function(pp) pp[[param_nr]],
+  selectfun_lay = function(pp) pp[[param_nr]],
+  gaminputs,
+  summary_layer = layer_add_identity
 )
 }
 \arguments{
-\item{pp}{processed predictor list from \code{processor}}
+\item{pp}{list of processed predictor lists from \code{processor}}
 
 \item{deep_top}{keras layer if the top part of the deep network after orthogonalization
 is different to the one extracted from the provided network}
@@ -22,7 +27,17 @@ is different to the one extracted from the provided network}
 
 \item{split_fun}{function to split the network to extract head}
 
+\item{shared_layers}{list defining shared weights within one predictor;
+each list item is a vector of characters of terms as given in the parameter formula}
+
 \item{param_nr}{integer number for the distribution parameter}
+
+\item{selectfun_in, selectfun_lay}{functions defining which subset of pp to
+take as inputs and layers for this subnetwork; per default the \code{param_nr}'s entry}
+
+\item{gaminputs}{input tensors for gam terms}
+
+\item{summary_layer}{keras layer that combines inputs (typically adding or concatenating)}
 }
 \value{
 returns a list of input and output for this additive predictor

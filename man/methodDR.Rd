@@ -19,7 +19,9 @@
   which_param = 1,
   only_data = FALSE,
   grid_length = 40,
+  main_multiple = NULL,
   type = "b",
+  get_weight_fun = get_weight_by_name,
   ...
 )
 
@@ -90,9 +92,14 @@ coefficients should be returned (default is first parameter)}
 \item{grid_length}{the length of an equidistant grid at which a two-dimensional function
 is evaluated for plotting.}
 
+\item{main_multiple}{vector of strings; plot main titles if multiple plots are selected}
+
 \item{type}{either NULL (all types of coefficients are returned),
 "linear" for linear coefficients or "smooth" for coefficients of 
 smooth terms}
+
+\item{get_weight_fun}{function to extract weight from model given \code{x},
+a \code{name} and \code{param_nr}}
 
 \item{...}{arguments passed to the \code{predict} function}
 
@@ -135,7 +142,8 @@ early stopping be trigged (default: "val_loss")}
 
 \item{print_folds}{whether to print the current fold}
 
-\item{cv_folds}{an integer if list with train and test data sets}
+\item{cv_folds}{an integer; can also be a list of lists 
+with train and test data sets per fold}
 
 \item{stop_if_nan}{logical; whether to stop CV if NaN values occur}
 

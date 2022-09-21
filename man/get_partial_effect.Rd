@@ -6,16 +6,17 @@
 \usage{
 get_partial_effect(
   object,
-  name,
+  names = NULL,
   return_matrix = FALSE,
   which_param = 1,
-  newdata = NULL
+  newdata = NULL,
+  ...
 )
 }
 \arguments{
 \item{object}{deepregression object}
 
-\item{name}{string; for partial match with smooth term}
+\item{names}{string; for partial match with smooth term}
 
 \item{return_matrix}{logical; whether to return the design matrix or}
 
@@ -23,6 +24,8 @@ get_partial_effect(
 the partial effect (\code{FALSE}, default)}
 
 \item{newdata}{data.frame; new data (optional)}
+
+\item{...}{arguments passed to \code{get_weight_by_name}}
 }
 \description{
 Return partial effect of one smooth term

@@ -1,4 +1,9 @@
-# needed by gam_processor
+#' Orthogonalize structured term by another matrix
+#' @param S matrix; matrix to orthogonalize
+#' @param L matrix; matrix which defines the projection
+#' and its orthogonal complement, in which \code{S} is projected
+#' @return constraint matrix
+#' @export
 orthog_structured_smooths_Z <- function(S,L)
 {
   
@@ -15,7 +20,11 @@ orthog_structured_smooths_Z <- function(S,L)
   
 }
 
-# needed by gam_processor
+#' Function to compute adjusted penalty when orthogonalizing
+#' @param P matrix; original penalty matrix
+#' @param Z matrix; constraint matrix
+#' @return adjusted penalty matrix
+#' @export
 orthog_P <- function(P,Z)
 {
   return(crossprod(Z,P) %*% Z)
@@ -25,8 +34,7 @@ orthog <- function(Y, Q)
 {
 
   X_XtXinv_Xt <- tf$linalg$matmul(Q,tf$linalg$matrix_transpose(Q))
-  Yorth <- Y - tf$linalg$matmul(X_XtXinv_Xt, Y)
-  return(Yorth)
+  return(Y - tf$linalg$matmul(X_XtXinv_Xt, Y))
 
 }
 
@@ -35,7 +43,7 @@ orthog_tf <- function(Y, X)
   
   Q = tf$linalg$qr(X, full_matrices=TRUE, name="QR")$q
   X_XtXinv_Xt <- tf$linalg$matmul(Q,tf$linalg$matrix_transpose(Q))
-  Yorth <- tf$subtract(Y, tf$linalg$matmul(X_XtXinv_Xt, Y))
+  return(tf$subtract(Y, tf$linalg$matmul(X_XtXinv_Xt, Y)))
   
 }
 
@@ -75,6 +83,7 @@ split_model <- function(model, where = -1)
 #' @param specials_to_oz parts of the formula to orthogonalize
 #' @param automatic_oz_check logical; automatically check if terms must be orthogonalized
 #' @param identify_intercept logical; whether to make the intercept identifiable
+#' @param simplify logical; if FALSE, formulas are parsed more carefully.
 #' @return Returns a list of formula components with ids and 
 #' assignments for orthogonalization
 #' 
@@ -84,10 +93,27 @@ separate_define_relation <- function(
   specials, 
   specials_to_oz, 
   automatic_oz_check = TRUE,
-  identify_intercept = FALSE
+  identify_intercept = FALSE,
+  simplify = FALSE
   )
 {
   
+  if(simplify){
+    terms <- trimws(strsplit(as.character(form)[[2]], split = "+", fixed = TRUE)[[1]])
+    terms <- terms[terms!=""]
+    terms <- lapply(1:length(terms), function(i) list(term = terms[i], nr = i,
+                                                      left_from_oz = TRUE,
+                                                      right_from_oz = NULL))
+    terms <- append(terms,
+                    list(list(
+                      term = "(Intercept)",
+                      nr = length(terms)+1,
+                      left_from_oz = TRUE,
+                      right_from_oz = NULL
+                    )))
+    return(terms)
+    
+  }
   tf <- terms.formula(form, specials = specials)
   has_intercept <- attr(tf, "intercept")
   trmstrings <- attr(tf, "term.labels")

@@ -9,10 +9,14 @@
 #' @param only_data logical, if TRUE, only the data for plotting is returned
 #' @param grid_length the length of an equidistant grid at which a two-dimensional function
 #' is evaluated for plotting.
+#' @param main_multiple vector of strings; plot main titles if multiple plots are selected
 #' @param type the type of plot (see generic \code{plot} function)
+#' @param get_weight_fun function to extract weight from model given \code{x},
+#' a \code{name} and \code{param_nr}
 #' @param ... further arguments, passed to fit, plot or predict function
 #'
 #' @method plot deepregression
+#' @export plot.deepregression
 #' @export
 #' @rdname methodDR
 #'
@@ -23,7 +27,9 @@ plot.deepregression <- function(
   which_param = 1, # for which parameter
   only_data = FALSE,
   grid_length = 40,
+  main_multiple = NULL,
   type = "b",
+  get_weight_fun = get_weight_by_name,
   ... # passed to plot function
 )
 {
@@ -51,10 +57,18 @@ plot.deepregression <- function(
     
   for(name in which){
     
+    if(!is.null(main_multiple)){
+      main <- main_multiple[1]
+    }else if(!is.null(list(...)$main)){
+      main <- list(...)$main
+    }else{
+      main <- name
+    }
+    
     pp <- pfc[[which(names_all==name)]]
     plotData[[name]] <- pp$plot_fun(pp, 
-                                    weights = get_weight_by_name(x, name = name , 
-                                                                 param_nr = which_param), 
+                                    weights = get_weight_fun(x, name = name , 
+                                                             param_nr = which_param), 
                                     grid_length = grid_length)
     
     dims <- NCOL(plotData[[name]]$value)
@@ -68,7 +82,7 @@ plot.deepregression <- function(
           
           suppressWarnings(plot(partial_effect[order(value),i] ~ sort(value),
                                 data = plotData[[name]][c("value", "partial_effect")],
-                                main = name,
+                                main = main,
                                 xlab = extractvar(name),
                                 ylab = "partial effect",
                                 type = type,
@@ -84,19 +98,41 @@ plot.deepregression <- function(
         
         for(k in 1:NCOL(plotData[[name]]$partial_effect)){
           
-          suppressWarnings(
-            filled.contour(
-              plotData[[name]]$x,
-              plotData[[name]]$y,
-              matrix(plotData[[name]]$partial_effect[,k], 
-                     ncol=length(plotData[[name]]$y)),
-              ...,
-              xlab = colnames(plotData[[name]]$df)[1],
-              ylab = colnames(plotData[[name]]$df)[2],
-              # zlab = "partial effect",
-              main = name
+          if(is.factor(plotData[[name]]$y)){
+            
+            ind <- rep(levels(plotData[[name]]$y), 
+                       each = length(plotData[[name]]$x))
+            
+            for(lev in levels(plotData[[name]]$y))
+              suppressWarnings(
+                plot(
+                  plotData[[name]]$x,
+                  plotData[[name]]$partial_effect[ind==lev],
+                  type = type,
+                  xlab = colnames(plotData[[name]]$df)[1],
+                  ylab = "partial effect",
+                  main = gsub(colnames(plotData[[name]]$df)[2], lev, main),
+                  ...
+                )
+              )
+            
+          }else{
+            
+            suppressWarnings(
+              filled.contour(
+                plotData[[name]]$x,
+                plotData[[name]]$y,
+                matrix(plotData[[name]]$partial_effect[,k], 
+                       ncol=length(plotData[[name]]$y)),
+                ...,
+                xlab = colnames(plotData[[name]]$df)[1],
+                ylab = colnames(plotData[[name]]$df)[2],
+                # zlab = "partial effect",
+                main = main
+              )
             )
-          )
+            
+          }
           
         }
         
@@ -106,6 +142,8 @@ plot.deepregression <- function(
       warning("Plotting of effects with ", dims,
               " covariate inputs not supported.")
     }
+    
+    main_multiple <- main_multiple[-1]
     
   }
   
@@ -118,12 +156,13 @@ plot.deepregression <- function(
 #'
 #' @param object a deepregression model
 #' @param newdata optional new data, either data.frame or list
-#' @param batch_size batch_size for generator (image use cases)
+#' @param batch_size batch_size for generator (image or large data use case)
 #' @param apply_fun which function to apply to the predicted distribution,
 #' per default \code{tfd_mean}, i.e., predict the mean of the distribution
 #' @param convert_fun how should the resulting tensor be converted,
 #' per default \code{as.matrix}
 #'
+#' @export predict.deepregression
 #' @export
 #' @rdname methodDR
 #'
@@ -137,17 +176,24 @@ predict.deepregression <- function(
 )
 {
 
-  if(length(object$init_params$image_var)>0)
-    return(predict_generator(object, newdata, batch_size, apply_fun, convert_fun))
+  # image case
+  if(length(object$init_params$image_var)>0 | !is.null(batch_size)){
+    
+    return(predict_gen(object, newdata, batch_size, apply_fun, convert_fun))
   
-  if(is.null(newdata)){
-    yhat <- object$model(prepare_data(object$init_params$parsed_formulas_contents))
   }else{
-    # preprocess data
-    if(is.data.frame(newdata)) newdata <- as.list(newdata)
-    newdata_processed <- prepare_newdata(object$init_params$parsed_formulas_contents, 
-                                         newdata)
-    yhat <- object$model(newdata_processed)
+    
+    if(is.null(newdata)){
+      yhat <- object$model(prepare_data(object$init_params$parsed_formulas_contents,
+                                        gamdata = object$init_params$gamdata$data_trafos))
+    }else{
+      # preprocess data
+      if(is.data.frame(newdata)) newdata <- as.list(newdata)
+      newdata_processed <- prepare_newdata(object$init_params$parsed_formulas_contents, 
+                                           newdata, 
+                                           gamdata = object$init_params$gamdata$data_trafos)
+      yhat <- object$model(newdata_processed)
+    }
   }
   
   if(!is.null(apply_fun))
@@ -164,6 +210,7 @@ predict.deepregression <- function(
 #' @param ... further arguments passed to the predict function
 #'
 #' @export
+#' @export fitted.deepregression
 #' @rdname methodDR
 #'
 fitted.deepregression <- function(
@@ -173,16 +220,6 @@ fitted.deepregression <- function(
   return(
     predict.deepregression(object, apply_fun=apply_fun, ...)
   )
-}
-
-#' Generic train function
-#'
-#' @param object object to apply fit on
-#' @param ... further arguments passed to the class-specific function
-#'
-#' @export
-fit <- function (object, ...) {
-  UseMethod("fit", object)
 }
 
 #' Fit a deepregression model (pendant to fit for keras)
@@ -205,7 +242,7 @@ fit <- function (object, ...) {
 #' \code{keras:::fit.keras.engine.training.Model}
 #'
 #'
-#' @export fit deepregression
+#' @export fit.deepregression
 #' @export
 #' 
 #' @rdname methodDR
@@ -235,20 +272,25 @@ fit.deepregression <- function(
   }
   if(early_stopping & length(callbacks)==0)
     callbacks <- append(callbacks,
-                        callback_early_stopping(patience = patience,
-                                                restore_best_weights = TRUE,
-                                                monitor = early_stopping_metric))
+                        list(callback_terminate_on_naan(),
+                             callback_early_stopping(patience = patience,
+                                                     restore_best_weights = TRUE,
+                                                     monitor = early_stopping_metric)
+                             )
+    )
   
   args <- list(...)
 
-  input_x <- prepare_data(object$init_params$parsed_formulas_content)
+  input_x <- prepare_data(object$init_params$parsed_formulas_content, 
+                          gamdata = object$init_params$gamdata$data_trafos)
   input_y <- as.matrix(object$init_params$y)
   
   if(!is.null(validation_data))
     validation_data <- 
     list(
       x = prepare_newdata(object$init_params$parsed_formulas_content, 
-                          validation_data[[1]]),
+                          validation_data[[1]], 
+                          gamdata = object$init_params$gamdata$data_trafos),
       y = as.matrix(validation_data[[2]], ncol=1)
     )
 
@@ -310,6 +352,7 @@ fit.deepregression <- function(
 #' @importFrom stats coef
 #' @method coef deepregression
 #' @rdname methodDR
+#' @export coef.deepregression
 #' @export
 #'
 coef.deepregression <- function(
@@ -324,6 +367,10 @@ coef.deepregression <- function(
   to_return <- get_type_pfc(pfc, type)
   
   names <- get_names_pfc(pfc)[as.logical(to_return)]
+  if(any(grepl("^mult\\(", names))){
+    names_mult <- c(sapply(names[grepl("^mult\\(", names)], get_terms_mult))
+    names <- c(names[!grepl("^mult\\(", names)], names_mult)
+  }
   pfc <- pfc[as.logical(to_return)]
   check_names <- names
   check_names[check_names=="(Intercept)"] <- "1"
@@ -345,6 +392,8 @@ coef.deepregression <- function(
 #' @param ... unused
 #'
 #' @method print deepregression
+#' @export print.deepregression
+#' @export
 #'
 print.deepregression <- function(
   x,
@@ -377,7 +426,8 @@ cv <- function (x, ...) {
 #' @param print_folds whether to print the current fold
 #' @param mylapply lapply function to be used; defaults to \code{lapply}
 #' @param save_weights logical, whether to save weights in each epoch.
-#' @param cv_folds an integer if list with train and test data sets
+#' @param cv_folds an integer; can also be a list of lists 
+#' with train and test data sets per fold
 #' @param stop_if_nan logical; whether to stop CV if NaN values occur
 #' @param callbacks a list of callbacks used for fitting
 #' @param save_fun function applied to the model in each fold to be stored in
@@ -412,10 +462,7 @@ cv.deepregression <- function(
       cv_folds)
   }
   
-  nrfolds <- length(cv_folds)
   old_weights <- x$model$get_weights()
-
-  if(print_folds) folds_iter <- 1
 
   # subset fun
   if(NCOL(x$init_params$y)==1)
@@ -436,7 +483,8 @@ cv.deepregression <- function(
     train_ind <- this_fold[[1]]
     test_ind <- this_fold[[2]]
 
-    x_train <- prepare_data(x$init_params$parsed_formulas_content)
+    x_train <- prepare_data(x$init_params$parsed_formulas_content,
+                            gamdata = x$init_params$gamdata$data_trafos)
     
     train_data <- lapply(x_train, function(x)
         subset_array(x, train_ind))
@@ -592,12 +640,14 @@ get_distribution <- function(
 )
 {
   if(is.null(data)){
-    disthat <- x$model(prepare_data(x$init_params$parsed_formulas_content))
+    disthat <- x$model(prepare_data(x$init_params$parsed_formulas_content, 
+                                    gamdata = x$init_params$gamdata$data_trafos))
   }else{
     # preprocess data
     if(is.data.frame(data)) data <- as.list(data)
     newdata_processed <- prepare_newdata(x$init_params$parsed_formulas_content, 
-                                         data)
+                                         data, 
+                                         gamdata = x$init_params$gamdata$data_trafos)
     disthat <- x$model(newdata_processed)
   }
   return(disthat)
@@ -618,7 +668,7 @@ log_score <- function(
   x,
   data=NULL,
   this_y=NULL,
-  ind_fun = function(x) tfd_independent(x,1),
+  ind_fun = function(x) tfd_independent(x),
   convert_fun = as.matrix,
   summary_fun = function(x) x
 )
@@ -626,13 +676,15 @@ log_score <- function(
 
   if(is.null(data)){
     
-    this_data <- prepare_data(x$init_params$parsed_formulas_content)
+    this_data <- prepare_data(x$init_params$parsed_formulas_content, 
+                              gamdata = x$init_params$gamdata$data_trafos)
   
   }else{
     
     if(is.data.frame(data)) data <- as.list(data)
     this_data <- prepare_newdata(x$init_params$parsed_formulas_content, 
-                                 data)
+                                 data, 
+                                 gamdata = x$init_params$gamdata$data_trafos)
     
   }
   
@@ -640,6 +692,9 @@ log_score <- function(
     
   if(is.null(this_y)){
     this_y <- x$init_params$y
+  }else{
+    if(is.null(dim(this_y)))
+      warning("log-score calculation requires this_y to be a matrix.")
   }
   
   return(summary_fun(convert_fun(
@@ -652,20 +707,29 @@ log_score <- function(
 #' @param mod fitted deepregression object
 #' @param name name of partial effect
 #' @param param_nr distribution parameter number
+#' @param postfixes character (vector) appended to layer name
 #' @return weight matrix
+#' @export
 #' 
 #' 
-get_weight_by_name <- function(mod, name, param_nr=1)
+get_weight_by_name <- function(mod, name, param_nr=1, postfixes="")
 {
-  
-  name <- makelayername(name, param_nr)
-  names <- sapply(mod$model$layers,"[[","name")
-  w <- which(name==names)
-  if(length(w)==0)
-    stop("Cannot find specified name in additive predictor #", param_nr,".")
-  wgts <- mod$model$layers[[w]]$weights
-  if(is.list(wgts) & length(wgts)==1)
-    return(as.matrix(wgts[[1]]))
+
+  # check for shared layer  
+  names_pfc <- get_names_pfc(mod$init_params$parsed_formulas_contents[[param_nr]])
+  names_pfc[names_pfc=="(Intercept)"] <- "1"
+  pfc_term <- mod$init_params$parsed_formulas_contents[[param_nr]][[which(names_pfc==name)]]
+  if(!is.null(pfc_term$shared_name)){
+    this_name <- paste0(pfc_term$shared_name, postfixes)
+  }else{
+    this_name <- paste0(makelayername(name, param_nr), postfixes)
+  }
+  # names <- get_mod_names(mod)
+  if(length(this_name)>1){
+    wgts <- lapply(this_name, function(name) get_weight_by_opname(mod, name))
+  }else{
+    wgts <- get_weight_by_opname(mod, this_name)
+  }
   return(wgts)
   
 }
@@ -674,29 +738,40 @@ get_weight_by_name <- function(mod, name, param_nr=1)
 #' Return partial effect of one smooth term
 #' 
 #' @param object deepregression object
-#' @param name string; for partial match with smooth term
+#' @param names string; for partial match with smooth term
 #' @param return_matrix logical; whether to return the design matrix or
 #' @param which_param integer; which distribution parameter
 #' the partial effect (\code{FALSE}, default)
 #' @param newdata data.frame; new data (optional)
+#' @param ... arguments passed to \code{get_weight_by_name}
 #' 
 #' @export
 #' 
-get_partial_effect <- function(object, name, return_matrix = FALSE, 
-                               which_param = 1, newdata = NULL)
+get_partial_effect <- function(object, names=NULL, return_matrix = FALSE, 
+                               which_param = 1, newdata = NULL, ...)
 {
   
-  weights <- get_weight_by_name(object, name = name, param_nr = which_param)
-  names_pfc <- get_names_pfc(object$init_params$parsed_formulas_contents[[which_param]])
-  w <- which(name==names_pfc)
-  if(length(w)==0)
-    stop("Cannot find specified name in additive predictor #", which_param,".")
-  pe_fun <- object$init_params$parsed_formulas_contents[[which_param]][[w]]$partial_effect
-  if(is.null(pe_fun)){
-    warning("Specified term does not have a partial effect function. Returning weights.")
-    return(weights)
-  }
-  return(pe_fun(weights, newdata))
+  names_pfc <- get_names_mod(object, which_param)
+  names <- if(!is.null(names)) intersect(names, names_pfc) else names_pfc
+  
+  if(length(names)==0)
+    stop("Cannot find specified name(s) in additive predictor #", which_param,".")
+  
+  res <- lapply(names, function(name){
+    w <- which(name==names_pfc)
+    
+    if(name=="(Intercept)") name <- "1"
+    weights <- get_weight_by_name(object, name = name, param_nr = which_param, ...)
+    weights <- object$init_params$parsed_formulas_contents[[which_param]][[w]]$coef(weights)
+    pe_fun <- object$init_params$parsed_formulas_contents[[which_param]][[w]]$partial_effect
+    if(is.null(pe_fun)){
+      #warning("Specified term does not have a partial effect function. Returning weights.")
+      return(weights)
+    }else{
+      return(pe_fun(weights, newdata))
+    }
+  })
+  if(length(res)==1) return(res[[1]]) else return(res)
   
 }
 

@@ -36,7 +36,9 @@ tfmult <- function(x,y) tf$math$multiply(x,y)
 #'  \item{"chi": }{cauchy with df (exp)}
 #'  \item{"exponential": }{exponential with lambda (exp)}
 #'  \item{"gamma": }{gamma with concentration (exp) and rate (exp)}
-#'  \item{"gammar": }{gamma with location (exp) and scale (exp)}
+#'  \item{"gammar": }{gamma with location (exp) and scale (exp), following
+#'  \code{gamlss.dist::GA}, which implies that the expectation is the location, 
+#'  and the variance of the distribution is the \code{location^2 scale^2}}
 #'  \item{"gumbel": }{gumbel with location (identity), scale (exp)}
 #'  \item{"half_cauchy": }{half cauchy with location (identity), scale (exp)}
 #'  \item{"half_normal": }{half normal with scale (exp)}
@@ -54,7 +56,7 @@ tfmult <- function(x,y) tf$math$multiply(x,y)
 #'  \item{"pareto": }{Pareto with concentration (exp) and scale (1/exp)} 
 #'  \item{"pareto_ls": }{Pareto location scale version with mean (exp) 
 #'  and scale (exp), which corresponds to a Pareto distribution with parameters scale = mean
-#'  and concentration = 1/sigma, where sigma is the scale in the pareto_ls version.}
+#'  and concentration = 1/sigma, where sigma is the scale in the pareto_ls version}
 #'  \item{"poisson": }{poisson with rate (exp)}
 #'  \item{"poisson_lograte": }{poisson with lograte (identity))}
 #'  \item{"student_t": }{Student's t with df (exp)}
@@ -139,13 +141,31 @@ make_tfd_dist <- function(family, add_const = 1e-8, output_dim = 1L,
 create_family <- function(tfd_dist, trafo_list, output_dim = 1L)
 {
   
-  ret_fun <- function(x) do.call(tfd_dist,
-                                 lapply(1:(x$shape[[2]]/output_dim),
-                                        function(i)
-                                          trafo_list[[i]](
-                                            tf_stride_cols(x,(i-1L)*output_dim+1L,
-                                                           (i-1L)*output_dim+output_dim)))
-  )
+  if(length(output_dim)==1){
+
+    # the usual  case    
+    ret_fun <- function(x) do.call(tfd_dist,
+                                   lapply(1:(x$shape[[2]]/output_dim),
+                                          function(i)
+                                            trafo_list[[i]](
+                                              tf_stride_cols(x,(i-1L)*output_dim+1L,
+                                                             (i-1L)*output_dim+output_dim)))
+    ) 
+  
+  }else{
+    
+    # tensor-shaped output (assuming the last dimension to be 
+    # the distribution parameter dimension if tfd_dist has multiple arguments)
+    dist_dim <- length(trafo_list)
+    ret_fun <- function(x) do.call(tfd_dist,
+                                   lapply(1:(x$shape[[length(x$shape)]]/dist_dim),
+                                          function(i)
+                                            trafo_list[[i]](
+                                              tf_stride_last_dim_tensor(x,(i-1L)*dist_dim+1L,
+                                                                        (i-1L)*dist_dim+dist_dim)))
+    ) 
+    
+  }
   
   attr(ret_fun, "nrparams_dist") <- length(trafo_list)
   
@@ -225,6 +245,7 @@ family_to_tfd <- function(family)
                      cauchy = tfd_cauchy,
                      chi2 = tfd_chi2,
                      chi = tfd_chi,
+                     deterministic = tfd_deterministic,
                      dirichlet_multinomial = tfd_dirichlet_multinomial,
                      dirichlet = tfd_dirichlet,
                      exponential = tfd_exponential,
@@ -243,6 +264,8 @@ family_to_tfd <- function(family)
                      laplace = tfd_laplace,
                      log_normal = tfd_log_normal,
                      logistic = tfd_logistic,
+                     mse = tfd_mse,
+                     mvr = tfd_mvr,
                      multinomial = function(probs)
                        tfd_multinomial(total_count = 1L,
                                        probs = probs),
@@ -305,6 +328,7 @@ family_to_trafo <- function(family, add_const = 1e-8)
                                      function(x) tf$add(add_const, tfe(x))),
                        chi2 = list(function(x) tf$add(add_const, tfe(x))),
                        chi = list(function(x) tf$add(add_const, tfe(x))),
+                       deterministic = list(function(x) x),
                        dirichlet_multinomial = list(), #tbd
                        dirichlet = list(), #tbd
                        exponential = list(function(x) tf$add(add_const, tfe(x))),
@@ -340,13 +364,16 @@ family_to_trafo <- function(family, add_const = 1e-8)
                                           function(x) tf$add(add_const, tfe(x))),
                        multinomial = list(function(x) tfsoft(x)),
                        multinoulli = list(function(x) x),
+                       mse = list(function(x) x),
+                       mvr = list(function(x) x, 
+                                  function(x) tf$add(add_const, tfe(x))),
                        pareto = list(function(x) tf$add(add_const, tfe(x)),
                                      function(x) add_const + tfe(-x)),
                        pareto_ls = list(function(x) tf$add(add_const, tfe(x)),
                                         function(x) tf$add(add_const, tfe(x))),
                        poisson = list(function(x) tf$add(add_const, tfe(x))),
                        poisson_lograte = list(function(x) x),
-                       student_t = list(function(x) x),
+                       student_t = list(function(x) tf$add(add_const, tfe(x))),
                        student_t_ls = list(function(x) tf$add(add_const, tfe(x)),
                                            function(x) x,
                                            function(x) tf$add(add_const, tfe(x))),
@@ -383,16 +410,9 @@ family_trafo_funs_special <- function(family, add_const = 1e-8)
 
       mu = tfe(tf_stride_cols(x,1))
       sig = tfe(tf_stride_cols(x,2))
-      # con = #tf$compat$v2$maximum(
-      #   tfrec(tfsq(sig))#,0 + add_const)
-      # rate = #tf$compat$v2$maximum(
-      #   tfrec(tfmult(tfsq(sig),mu))#,0 + add_const)
       sigsq = tfsq(sig)
-      con = tfdiv(tfsq(mu), sigsq) + add_const
-      rate = tfdiv(mu, sigsq) + add_const
-
-      # rate = tfrec(tfe(x[,2,drop=FALSE]))
-      # con = tfdiv(tfe(x[,1,drop=FALSE]), tfe(x[,1,drop=FALSE]))
+      con = tfrec(sigsq + add_const)
+      rate = tfrec(tfmult(mu, sigsq))
 
       return(list(concentration = con, rate = rate))
     },
@@ -498,5 +518,42 @@ tfd_zinb <- function(mu, r, probs)
                        tfd_deterministic(loc = mu * 0L)
                   ),
                 name="zinb")
+  )
+}
+
+# Implementation of a distribution-like layer for Mean-Variance Regression
+tfd_mvr <- function(loc, scale, 
+                    validate_args = FALSE,
+                    allow_nan_stats = TRUE,
+                    name = "MVR")
+{
+  
+  args <- list(
+    loc = loc,
+    scale = scale,
+    validate_args = validate_args,
+    allow_nan_stats = allow_nan_stats,
+    name = name
+  )
+  
+  python_path <- system.file("python", package = "deepregression")
+  distributions <- reticulate::import_from_path("distributions", path = python_path)
+  
+  return(do.call(distributions$MVR, args))
+  
+}
+
+#' For using mean squared error via TFP
+#' 
+#' @param mean parameter for the mean
+#' @details \code{deepregression} allows to train based on the
+#' MSE by using \code{loss = "mse"} as argument to \code{deepregression}.
+#' This tfd function just provides a dummy \code{family}
+#' @return a TFP distribution
+#' 
+tfd_mse <- function(mean)
+{
+  return(
+    tfd_normal(loc = mean, scale = 1)
   )
 }

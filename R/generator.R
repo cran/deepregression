@@ -162,7 +162,7 @@ prepare_generator_deepregression <- function(
     
   }else{
     
-    input_x <- lapply(input_x, as.matrix)
+    input_x <- lapply(input_x, as.array)
     
     ind_val <- sample(1:NROW(input_y), round(NROW(input_y)*validation_split))
     ind_train <- setdiff(1:NROW(input_y), ind_val)
@@ -207,20 +207,23 @@ prepare_generator_deepregression <- function(
   
 }
 
-predict_generator <- function(
+predict_gen <- function(
   object,
   newdata = NULL,
   batch_size = NULL,
   apply_fun = tfd_mean,
-  convert_fun = as.matrix
+  convert_fun = as.matrix,
+  ret_dist = FALSE
 )
 {
   
   if(!is.null(newdata)){
     newdata_processed <- prepare_newdata(object$init_params$parsed_formulas_contents, 
-                                         newdata)
+                                         newdata, 
+                                         gamdata = object$init_params$gamdata$data_trafos)
   }else{
-    newdata_processed <- prepare_data(object$init_params$parsed_formulas_contents)
+    newdata_processed <- prepare_data(object$init_params$parsed_formulas_contents,
+                                      gamdata = object$init_params$gamdata$data_trafos)
   }
   # prepare generator
   max_data <- NROW(newdata_processed[[1]])
@@ -230,12 +233,24 @@ predict_generator <- function(
   generator <- make_generator(input_x = newdata_processed,
                               input_y = NULL,
                               batch_size = batch_size,
-                              sizes = object$init_params$image_var)
+                              sizes = object$init_params$image_var,
+                              shuffle = FALSE)
   
-  if(is.null(apply_fun)) apply_fun <- function(x){x}
-  return(sapply(1:steps_per_epoch, function(i) 
+  if(is.null(apply_fun)){ 
+    
+    apply_fun <- function(x){x}
+    ret_dist <- TRUE
+    
+  }else{
+    
+    ret_dist <- FALSE
+    
+  }
+  
+  res <- lapply(1:steps_per_epoch, function(i) 
     convert_fun(apply_fun(suppressWarnings(
       object$model(generator$`__getitem__`(as.integer(i-1)))))))
-  )
+  
+  if(ret_dist) return(res) else return(do.call("rbind", (res)))
   
 }

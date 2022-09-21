@@ -19,6 +19,9 @@ deepregression(
   additional_processors = list(),
   penalty_options = penalty_control(),
   orthog_options = orthog_control(),
+  weight_options = weight_control(),
+  formula_options = form_control(),
+  output_dim = 1L,
   verbose = FALSE,
   ...
 )
@@ -42,22 +45,23 @@ this network.}
 See the examples for more details.}
 
 \item{family}{a character specifying the distribution. For information on
-possible distribution and parameters, see \code{\link{make_tfd_dist}}. Can also 
+possible distribution and parameters, see \code{\link{make_tfd_dist}}. Can also
 be a custom distribution.}
 
 \item{data}{data.frame or named list with input features}
 
 \item{tf_seed}{a seed for TensorFlow (only works with R version >= 2.2.0)}
 
-\item{return_prepoc}{logical; if TRUE only the pre-processed data and layers are returned (default FALSE).}
+\item{return_prepoc}{logical; if TRUE only the pre-processed data and layers are returned 
+(default FALSE).}
 
 \item{subnetwork_builder}{function to build each subnetwork (network for each distribution parameter;
 per default \code{subnetwork_init}). Can also be a list of the same size as
 \code{list_of_formulas}.}
 
-\item{model_builder}{function to build the model based on additive predictors (per default \code{keras_dr}).
-In order to work with the methods defined for the class \code{deepregression}, the model should behave
-like a keras model}
+\item{model_builder}{function to build the model based on additive predictors 
+(per default \code{keras_dr}). In order to work with the methods defined for the class 
+\code{deepregression}, the model should behave like a keras model}
 
 \item{fitting_function}{function to fit the instantiated model when calling \code{fit}. Per default
 the keras \code{fit} function.}
@@ -68,6 +72,12 @@ Can have an attribute \code{"controls"} to pass additional controls}
 \item{penalty_options}{options for smoothing and penalty terms defined by \code{\link{penalty_control}}}
 
 \item{orthog_options}{options for the orthgonalization defined by \code{\link{orthog_control}}}
+
+\item{weight_options}{options for layer weights defined by \code{\link{weight_control}}}
+
+\item{formula_options}{options for formula parsing (mainly used to make calculation more efficiently)}
+
+\item{output_dim}{dimension of the output, per default 1L}
 
 \item{verbose}{logical; whether to print progress of model initialization to console}
 
@@ -111,7 +121,7 @@ mod \%>\% plot()
 }
 
 mod <- deepregression(
-  list_of_formulas = list(loc = ~ 1 + s(xa) + x1, scale = ~ 1, 
+  list_of_formulas = list(loc = ~ 1 + s(xa) + x1, scale = ~ 1,
                           dummy = ~ -1 + deep_model(x1,x2,x3) \%OZ\% 1),
   data = data, y = y,
   list_of_deep_models = list(deep_model = deep_model),

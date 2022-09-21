@@ -1,19 +1,19 @@
-default_train_step = function() {
+build_customKeras = function(...) {
   python_path <- system.file("python", package = "deepregression")
   models <- reticulate::import_from_path("models", path = python_path)
   
-  return(models$default_train_step)
+  return(models$build_customKeras(...))
 }
 
-build_customKeras = function() {
+#' Function to define an optimizer combining multiple optimizers
+#' @param optimizers_and_layers a list if \code{tuple}s of optimizer
+#' and respective layers
+#' @return an optimizer
+#' @export
+multioptimizer = function(optimizers_and_layers) {
   python_path <- system.file("python", package = "deepregression")
-  models <- reticulate::import_from_path("models", path = python_path)
+  opt <- reticulate::import_from_path("optimizers", path = python_path)
   
-  return(models$build_customKeras())
+  return(opt$MultiOptimizer(optimizers_and_layers))
 }
 
-tib_layer = function(units, la, ...) {
-  python_path <- system.file("python", package = "deepregression")
-  layers <- reticulate::import_from_path("layers", path = python_path)
-  layers$TibLinearLasso(num_outputs = units, la = la, ...)
-}
