@@ -1,4 +1,4 @@
-c3c001169c62d9de20a022c273c4e42f *DESCRIPTION
+e61db4b1de9440aa34cb9a8efcfe4ffb *DESCRIPTION
 621900ea031ef900827b8552fa6d9b62 *NAMESPACE
 d41d8cd98f00b204e9800998ecf8427e *R/aaa.R
 62e76044291e3523971d544fe00a4ac3 *R/controls.R
@@ -14,7 +14,7 @@ b919d7224bd92a7446a1d895b18ea0ff *R/generator.R
 69e23454162e857c79a9939880ff6290 *R/layers.R
 d790910a1d0dd0709c8333d386f1fe12 *R/methods.R
 238644cb8aa323553e2076b4cd58d6c4 *R/models.R
-02d7db3e7b1004bc103ca4b43f20d725 *R/orthogonalization.R
+b38f130f1763c881a00efb78751d107b *R/orthogonalization.R
 88a1de2ddd6f8bc2f06f44fe060cee0a *R/psplinelayer.R
 1efd78bf0f8ed3acfea4e87246656a49 *R/special_processing.R
 3c21dd64a6008c063169b49245ee86e6 *R/subnetwork_init.R
