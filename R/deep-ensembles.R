@@ -21,6 +21,7 @@ ensemble <- function (x, ...) {
 #'     defaults to \code{TRUE}
 #' @param print_members logical; print results for each member
 #' @inheritParams cv.deepregression
+#' @param seed seed for reproducibility
 #' @param ... further arguments passed to \code{object$fit_fun}
 #'
 #' @return object of class \code{"drEnsemble"}, containing the original
@@ -45,6 +46,7 @@ ensemble.deepregression <- function(
   save_weights = TRUE,
   callbacks = list(),
   save_fun = NULL,
+  seed = seq_len(n_ensemble),
   ...
 )
 {
@@ -55,7 +57,7 @@ ensemble.deepregression <- function(
 
     # Randomly initialize weights
     if (reinitialize)
-      x <- reinit_weights(x)
+      x <- reinit_weights(x, seed[iter])
     else
       set_weights(x$model, original_weights)
 
@@ -217,30 +219,34 @@ fitted.drEnsemble <- function(object, apply_fun = tfd_mean, ...) {
 #' Genereic function to re-intialize model weights
 #'
 #' @param object model to re-initialize
+#' @param seed seed for reproducibility
 #' @export
 #'
-reinit_weights <- function(object) {
+reinit_weights <- function(object, seed) {
   UseMethod("reinit_weights")
 }
 
 #' Method to re-initialize weights of a \code{"deepregression"} model
 #'
 #' @param object object of class \code{"deepregression"}
-#'
+#' @param seed seed for reproducibility
 #' @return invisible \code{NULL}
 #'
 #' @method reinit_weights deepregression
 #'
 #' @export
 #'
-reinit_weights.deepregression <- function(object) {
+reinit_weights.deepregression <- function(object, seed) {
   lapply(object$model$layers, function(x) {
     # x$build(x$input_shape)
     dtype <- x$dtype
-    dshape <- try(x$kernel$shape, silent = TRUE)
-    dweight <- try(x$kernel_initializer(shape = dshape, dtype = dtype), silent = TRUE)
-    try(x$set_weights(weights = list(dweight)), silent = TRUE)
+    try({
+      dshape <- x$kernel$shape
+      dinit <- x$kernel_initializer$from_config(
+        config = list(seed = tf$constant(seed)))
+      dweight <- dinit(shape = dshape, dtype = dtype)
+      x$set_weights(weights = list(dweight))
+    }, silent = TRUE)
   })
-
   return(invisible(object))
 }

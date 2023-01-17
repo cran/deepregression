@@ -4,10 +4,12 @@
 \alias{reinit_weights.deepregression}
 \title{Method to re-initialize weights of a \code{"deepregression"} model}
 \usage{
-\method{reinit_weights}{deepregression}(object)
+\method{reinit_weights}{deepregression}(object, seed)
 }
 \arguments{
 \item{object}{object of class \code{"deepregression"}}
+
+\item{seed}{seed for reproducibility}
 }
 \value{
 invisible \code{NULL}

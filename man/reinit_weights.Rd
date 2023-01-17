@@ -4,10 +4,12 @@
 \alias{reinit_weights}
 \title{Genereic function to re-intialize model weights}
 \usage{
-reinit_weights(object)
+reinit_weights(object, seed)
 }
 \arguments{
 \item{object}{model to re-initialize}
+
+\item{seed}{seed for reproducibility}
 }
 \description{
 Genereic function to re-intialize model weights

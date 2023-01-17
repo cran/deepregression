@@ -17,6 +17,7 @@
   save_weights = TRUE,
   callbacks = list(),
   save_fun = NULL,
+  seed = seq_len(n_ensemble),
   ...
 )
 }
@@ -48,6 +49,8 @@ defaults to \code{TRUE}}
 
 \item{save_fun}{function applied to the model in each fold to be stored in
 the final result}
+
+\item{seed}{seed for reproducibility}
 
 \item{...}{further arguments passed to \code{object$fit_fun}}
 }
