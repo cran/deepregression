@@ -1,19 +1,21 @@
 #' @importFrom stats na.omit
 
 VERSIONPY = "3.10"
-VERSIONTF = "2.10"
-VERSIONKERAS = "2.10"
-VERSIONTFP = "0.16"
+VERSIONTF = "2.15"
+VERSIONKERAS = "2.15"
+VERSIONTFP = "0.23"
+
+globalVariables("self")
 
 create_package_name <- function(package, version)
   paste(package, version, sep="==")
 
 .onLoad <- function(libname, pkgname) { # nocov start
-  if(suppressMessages(!reticulate::py_available()))
+  if(suppressMessages(!reticulate::py_available() | .Platform$OS.type == "windows"))
   {
     res <- suppressMessages(reticulate::configure_environment(pkgname))
     if(res & requireNamespace("tensorflow", quietly = TRUE) & 
-       requireNamespace("keras", quietly = TRUE)){
+       requireNamespace("keras", quietly = TRUE) & .Platform$OS.type != "windows"){
       suppressMessages(try(tf$compat$v1$logging$set_verbosity(
         tf$compat$v1$logging$ERROR)))
       suppressMessages(try(tf$get_logger()$setLevel('ERROR')))
@@ -23,13 +25,19 @@ create_package_name <- function(package, version)
       suppressMessages(try(invisible(tfprobability::tfd_normal(0,1)), silent = TRUE))
       suppressMessages(try(invisible(tfprobability::tfd_normal(0,1)), silent = TRUE))
     }else{
-      tf <<- reticulate::import("tensorflow", delay_load = TRUE)
+      tf <<- reticulate::import("tensorflow", delay_load = list(
+        on_load = function(){
+          tape <<- tf$GradientTape
+          }
+        )
+      )
       keras <<- reticulate::import("keras", delay_load = TRUE)
       tfp <<- reticulate::import("tensorflow_probability", delay_load = TRUE)
     }
     
   }else{
     tf <- reticulate::import("tensorflow")
+    tape <- tf$GradientTape
   } # nocov end
   # options
   options(orthogonalize = TRUE,
@@ -45,25 +53,49 @@ create_package_name <- function(package, version)
 #' Internally uses \code{keras::install_keras}.
 #'
 #' @param force if TRUE, forces the installations
+#' @param engine character; check if tf(= tensorflow) or torch is available
 #' @return Function that checks if a Python environment is available
 #' and contains TensorFlow. If not the recommended version is installed.
 #' @rdname check_and_install
 #'
 #' @export
-check_and_install <- function(force = FALSE) {
-  if (!reticulate::py_module_available("tensorflow") || force) {
-    keras::install_keras(version = VERSIONKERAS, tensorflow = VERSIONTF, 
-                         extra_packages = c(create_package_name("tensorflow_probability", VERSIONTFP),
-                                            "six")) # nocov
-  } else {
-    message("Tensorflow found, skipping tensorflow installation!")
-    if (!reticulate::py_module_available("tensorflow_probability") || 
-        !reticulate::py_module_available("six")) {
-      message("Installing python modules 'tfprobability' and 'six'") # nocov
-      reticulate::py_install(packages = c(create_package_name("tensorflow_probability", VERSIONTFP), 
-                                          "six")) # nocov
-    }
-  }
+check_and_install <- function(force = FALSE, engine) {
+  switch(engine,
+         "tf" = if (!reticulate::py_module_available("tensorflow") || force) {
+           keras::install_keras(version = VERSIONKERAS, tensorflow = VERSIONTF, 
+                                extra_packages = c(create_package_name("tensorflow_probability", VERSIONTFP),
+                                                   "six")) # nocov
+         } else {
+           message("Tensorflow found, skipping tensorflow installation!")
+           if (!reticulate::py_module_available("tensorflow_probability") || 
+               !reticulate::py_module_available("six")) {
+             message("Installing python modules 'tfprobability' and 'six'") # nocov
+             reticulate::py_install(packages = c(create_package_name("tensorflow_probability", VERSIONTFP), 
+                                                 "six")) # nocov
+           }
+         },
+         "torch" =  if(!torch::torch_is_installed()){
+           torch::install_torch()
+         },
+         "both" = {
+           if (!reticulate::py_module_available("tensorflow") || force) {
+            keras::install_keras(version = VERSIONKERAS, tensorflow = VERSIONTF, 
+                                  extra_packages = c(create_package_name("tensorflow_probability", VERSIONTFP),
+                                                     "six")) # nocov
+          } else {
+             message("Tensorflow found, skipping tensorflow installation!")
+            if (!reticulate::py_module_available("tensorflow_probability") || 
+                 !reticulate::py_module_available("six")) {
+               message("Installing python modules 'tfprobability' and 'six'") # nocov
+              reticulate::py_install(packages = c(create_package_name("tensorflow_probability", VERSIONTFP), 
+                                                   "six")) # nocov
+            }
+          }
+           if(!torch::torch_is_installed()){
+             torch::install_torch()
+         }})
+  
+ 
 }
 
 #' Function to update miniconda and packages

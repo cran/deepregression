@@ -14,6 +14,7 @@ process_terms(
   specials_to_oz = c(),
   automatic_oz_check = TRUE,
   identify_intercept = FALSE,
+  engine = "tf",
   ...
 )
 }
@@ -35,6 +36,8 @@ process_terms(
 \item{automatic_oz_check}{logical; whether to automatically check for DNNs to be orthogonalized}
 
 \item{identify_intercept}{logical; whether to make the intercept automatically identifiable}
+
+\item{engine}{character; the engine which is used to setup the NN (tf or torch)}
 
 \item{...}{further processors}
 }

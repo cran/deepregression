@@ -2,7 +2,7 @@
 % Please edit documentation in R/deep-ensembles.R
 \name{ensemble.deepregression}
 \alias{ensemble.deepregression}
-\title{Ensemblind deepregression models}
+\title{Ensembling deepregression models}
 \usage{
 \method{ensemble}{deepregression}(
   x,
@@ -61,5 +61,5 @@ object of class \code{"drEnsemble"}, containing the original
     the trained weights of each ensemble member)
 }
 \description{
-Ensemblind deepregression models
+Ensembling deepregression models
 }

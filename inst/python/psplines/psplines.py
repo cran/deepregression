@@ -102,13 +102,6 @@ def get_specific_layer(string_to_match, layers, index=True, invert=False):
     else:
         return(layers[wh])    
     
-
-def layer_spline(P, units, name, trainable = True, kernel_initializer = "glorot_uniform"):
-    return(tf.keras.layers.Dense(units = units, name = name, use_bias=False, kernel_regularizer = squaredPenalty(P, 1), trainable = trainable, kernel_initializer = kernel_initializer))
-
-def layer_splineVC(P, units, name, trainable = True, kernel_initializer = "glorot_uniform"):
-    return(tf.keras.layers.Dense(units = units, name = name, use_bias=False, kernel_regularizer = squaredPenaltyVC(P, 1), trainable = trainable, kernel_initializer = kernel_initializer))
-
 class squaredPenalty(regularizers.Regularizer):
 
     def __init__(self, P, strength):
@@ -137,6 +130,30 @@ class squaredPenaltyVC(regularizers.Regularizer):
 
     def get_config(self):
         return {'strength': self.strength, 'P': self.P}
+
+class SplineLayer(tf.keras.layers.Dense):
+
+    def __init__(self, P, **kwargs):
+        super(SplineLayer, self).__init__(kernel_regularizer = squaredPenalty(P, 1), **kwargs)
+        self.P = P
+
+    def get_config(self):
+
+        config = super().get_config().copy()
+        config.update({
+            'P': self.P,
+            'kernel_regularizer': self.kernel_regularizer,
+            'squaredPenalty': squaredPenalty
+        })
+        return config
+    
+
+def layer_spline(P, units, name, trainable = True, kernel_initializer = "glorot_uniform"):
+    return(SplineLayer(units = units, name = name, use_bias=False, P = P, trainable = trainable, kernel_initializer = kernel_initializer))
+
+def layer_splineVC(P, units, name, nlev, trainable = True, kernel_initializer = "glorot_uniform"):
+    return(SplineLayer(units = units, name = name, use_bias=False, P = P, trainable = trainable, kernel_initializer = kernel_initializer))
+
     
 class PenLinear(tf.keras.layers.Layer):
     def __init__(self, units, lambdas, mask, P, n, nr):
@@ -169,6 +186,156 @@ class PenLinear(tf.keras.layers.Layer):
 
     def call(self, inputs):
         return tf.matmul(inputs, self.w)
+
+class TrainableLambdaLayer(tf.keras.layers.Layer):
+    def __init__(self, units, P, kernel_initializer=tf.keras.initializers.HeNormal, **kwargs):
+        super(TrainableLambdaLayer, self).__init__(**kwargs)
+        self.units = units
+        self.loglambda = self.add_weight(name='loglambda',
+                                         shape=(units,),
+                                         initializer=tf.keras.initializers.RandomNormal,
+                                         trainable=True)
+        self.P = P
+        self.kernel_initializer = kernel_initializer
+
+    def build(self, input_shape):
+        self.w = self.add_weight(
+            shape=(input_shape[-1], self.units),
+            initializer=self.kernel_initializer,
+            #regularizer=squaredPenalty(self.P, tf.math.exp(self.lmbda)),
+            trainable=True
+        )
+
+    def get_config(self):
+
+        config = super().get_config().copy()
+        config.update({
+            'units': self.units,
+            'lambda': self.loglambda,
+            'P': self.P,
+            'kernel_initializer': self.kernel_initializer
+        })
+        return config
+
+    def call(self, inputs):
+        self.add_loss(tf.math.exp(self.loglambda) * 0.5 * tf.reduce_sum(vecmatvec(self.w, tf.cast(self.P, dtype="float32"))))
+        return tf.matmul(inputs, self.w)
+
+
+class WeightLayer(tf.keras.layers.Layer):
+    def __init__(self, units, kernel_initializer=tf.keras.initializers.HeNormal, **kwargs):
+        super(WeightLayer, self).__init__(**kwargs)
+        self.units = units
+        self.kernel_initializer = kernel_initializer
+
+    def build(self, input_shape):
+        self.w = self.add_weight(
+            shape=(input_shape[-1], self.units),
+            initializer=self.kernel_initializer,
+            trainable=True
+        )
+
+    def call(self, inputs):
+        return tf.matmul(inputs, self.w), self.w
+
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'units': self.units,
+            'kernel_initializer': self.kernel_initializer
+        })
+        return config
+
+class LambdaLayer(tf.keras.layers.Layer):
+    def __init__(self, units, P, damping = 1.0, scale = 1.0, **kwargs):
+        super(LambdaLayer, self).__init__(**kwargs)
+        self.units = units
+        self.trafolambda = self.add_weight(name='trafolambda',
+                                         shape=(units,len(P)),
+                                         initializer=tf.keras.initializers.Constant(value=-10),
+                                         trainable=True)
+        # self.phi = tf.Variable(1.0, name = 'phimultiplier', trainable=False, dtype=tf.float32)
+        self.damping = damping
+        self.scale = scale
+        self.P = P
+
+    def call(self, inputs, w, scale):
+        for i in range(len(self.P)):
+            lmbda = tf.reshape(tf.math.exp(self.trafolambda[:,i]), [])
+            if scale is not None:
+                Pscaled = self.P[i] * scale
+            else:
+                nobs = tf.shape(inputs)[0]
+                Pscaled = self.P[i] / nobs
+            inf = 0.5 * tf.reduce_sum(vecmatvec(w, tf.cast(Pscaled, dtype="float32")))
+            damp_term = self.damping * inf**2 / 2
+            l_term = lmbda * inf # / self.phi 
+            self.add_loss(self.scale * (l_term + damp_term))
+        return inputs
+        
+    def get_Plambda_list(self):
+        return [tf.math.exp(self.trafolambda[:,i]) * tf.cast(self.P[i], dtype="float32") for i in range(len(self.P))]
+
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'units': self.units,
+            'trafolambda': self.trafolambda.numpy(),
+            'P': self.P# ,
+            #'phi': self.phi
+        })
+        return config
+
+class CombinedModel(tf.keras.Model):
+    def __init__(self, units, P, Pscale=None, kernel_initializer=tf.keras.initializers.HeNormal, **kwargs):
+        super(CombinedModel, self).__init__(**kwargs)
+        self.weight_layer = WeightLayer(units, kernel_initializer)
+        self.lambda_layer = LambdaLayer(units, P)
+        self.units = units
+        self.Pscale = Pscale
+
+    def call(self, inputs):
+        output, weights = self.weight_layer(inputs)
+        #if self.Pscale is None: # FIXME: anisotropic smoothing
+        #    nobs = tf.shape(inputs)[0]
+        #    Pscaled = self.lambda_layer.get_Plambda_list()[0] / nobs
+        #else:
+        #    Pscaled = self.lambda_layer.get_Plambda_list()[0] * self.Pscale
+        # lambdaPdiag = Pscaled 
+        # nobs = tf.cast(tf.shape(inputs)[0], dtype="float32")
+        # self.add_loss(0.5 * (tf.linalg.logdet(tf.linalg.matmul(tf.transpose(inputs), inputs)/self.lambda_layer.phi + lambdaPdiag/self.lambda_layer.phi/nobs))) 
+        # if self.Peigen is not None: # FIXME: anisotropic smoothing
+        #    dimP = len(self.Peigen)
+        #    lmbda = tf.reshape(tf.math.exp(self.lambda_layer.trafolambda[:,0]), [])
+        #    self.add_loss(- tf.math.pow(lmbda/self.lambda_layer.phi, dimP) * tf.reduce_prod(self.Peigen) * 0.5)
+        # self.add_loss(0.5 * tf.linalg.trace(tf.linalg.solve(tf.linalg.matmul(tf.transpose(inputs), inputs) + lambdaPdiag + 1e-8 * tf.eye(lambdaPdiag.shape[0]),
+        #                                              tf.linalg.matmul(tf.transpose(inputs), inputs)))) 
+        return self.lambda_layer(output, weights, self.Pscale)
+        
+    def compute_output_shape(self, input_shape):
+        output_shape = input_shape[:-1] + (self.units,)
+        return output_shape
+        
+class UpdateMultiplicationFactorFromWeight(tf.keras.callbacks.Callback):
+    def __init__(self, model, weightnr = -1, trafo = lambda x: tf.math.square(tf.math.exp(x))):
+        super().__init__()
+        self.model = model
+        self.weightnr = weightnr
+        self.trafo = trafo
+
+    def on_batch_begin(self, epoch, logs=None):
+        # Extract the value of the last weight of the model
+        new_phi_value = self.model.weights[self.weightnr].numpy()
+
+        # Iterate through all layers of the model
+        for layer in self.model.layers:
+            # Check if the layer is an instance of CombinedModel
+            if isinstance(layer, CombinedModel):
+                # Access the LambdaLayer within the CombinedModel
+                lambda_layer = layer.lambda_layer
+                
+                # Update the phi variable within the LambdaLayer
+                tf.keras.backend.set_value(lambda_layer.phi, tf.reshape(self.trafo(new_phi_value), []))
 
 def get_masks(mod):
     masks = []

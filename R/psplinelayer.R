@@ -187,6 +187,7 @@ handle_gam_term <- function(
   # check for df argument and remove
   object <- remove_df_wrapper(object)
   names_s <- all.vars(as.formula(paste0("~", object)))
+  names_s <- names_s[names_s %in% names(data)]
   sterm <- smoothCon(eval(parse(text=object)),
                      data=data.frame(data[names_s]),
                      absorb.cons = controls$absorb_cons,
@@ -219,11 +220,23 @@ remove_la <- function(object)
 
 }
 
-
+#' Handler for prediction with gam terms
+#' 
+#' @param object sterm
+#' @param newdata data.frame or list
+#' 
+#' @export 
+#' 
 predict_gam_handler <- function(object, newdata)
 {
 
-  if(is.list(object) && length(object)==1) return(PredictMat(object[[1]], as.data.frame(newdata[object[[1]]$term])))
+  if(is.list(object) && length(object)==1){ 
+    
+    terms <- object[[1]]$term 
+    if(object[[1]]$by!="NA") terms <- c(terms, object[[1]]$by)
+    return(PredictMat(object[[1]], as.data.frame(newdata[terms])))
+  
+  }
   return(do.call("cbind", lapply(object, function(obj) PredictMat(obj, as.data.frame(newdata))))  )
 
 }
@@ -376,13 +389,33 @@ create_data_trafos <- function(evaluated_gam_term, controls, xlin)
 #' @export
 create_penalty <- function(evaluated_gam_term, df, controls, Z = NULL)
 {
+  
+  sp_provided <- FALSE
+  
+  # support for custom smoothing parameters
+  if (length(evaluated_gam_term) == 1 && !is.null(evaluated_gam_term[[1]][["sp"]])) {
+    
+    if (length(evaluated_gam_term[[1]][["sp"]]) != length(evaluated_gam_term[[1]]$S)) {
+      
+      stop("Incorrect number of smoothing parameters supplied for smooth term ",
+           evaluated_gam_term[[1]][["label"]])
+      
+    } else {
+      
+      sp <- evaluated_gam_term[[1]][["sp"]]
+      message("Using custom smoothing parameter(s) for smooth term ",
+              evaluated_gam_term[[1]][["label"]])
+      sp_provided <- TRUE
+      
+    }
+  }
 
   # get sp and S
   sp_and_S <- list(
-    sp = controls$defaultSmoothing(evaluated_gam_term, df),
+    sp = if (exists("sp")) sp else controls$defaultSmoothing(evaluated_gam_term, df),
     S = extract_S(evaluated_gam_term)
   )
-
+  
   if(controls$zero_constraint_for_smooths &
      length(evaluated_gam_term)==1 &
      !evaluated_gam_term[[1]]$dim>1 & !is.null(Z)){
@@ -390,11 +423,19 @@ create_penalty <- function(evaluated_gam_term, df, controls, Z = NULL)
     sp_and_S[[2]][[1]] <- orthog_P(sp_and_S[[2]][[1]],Z)
 
   }else if(evaluated_gam_term[[1]]$dim>1 &
-           length(evaluated_gam_term)==1){
+           length(evaluated_gam_term)==1 & !sp_provided){
     # tensor product -> merge and keep dummy
     sp_and_S <- list(sp = 1,
                      S = list(do.call("+", lapply(1:length(sp_and_S[[2]]), function(i)
                        sp_and_S[[1]][i] * sp_and_S[[2]][[i]]))))
+  }else if(evaluated_gam_term[[1]]$dim>1 &
+           length(evaluated_gam_term)==1 & 
+           controls$anisotropic & 
+           sp_provided){
+
+    sp_and_S <- list(sp = 1,
+                     sp_and_S[[2]])
+    
   }
 
   return(list(sp_and_S = sp_and_S))
@@ -531,7 +572,6 @@ precalc_gam <- function(lof, data, controls)
 
 get_gamdata_nr <- function(term, param_nr, gamdata)
 {
-
   which(sapply(gamdata$matching_table, "[[", "term") == 
           gsub(" ", "", gsub("\n", "", term, fixed = T), fixed=T) &
           sapply(gamdata$matching_table, "[[", "param_nr") == param_nr

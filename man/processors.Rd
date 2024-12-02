@@ -4,7 +4,10 @@
 \alias{layer_generator}
 \alias{int_processor}
 \alias{lin_processor}
+\alias{ri_processor}
 \alias{gam_processor}
+\alias{autogam_processor}
+\alias{node_processor}
 \title{Function that creates layer for each processor}
 \usage{
 layer_generator(
@@ -12,39 +15,53 @@ layer_generator(
   output_dim,
   param_nr,
   controls,
+  name = makelayername(term, param_nr),
   layer_class = tf$keras$layers$Dense,
   without_layer = tf$identity,
-  name = makelayername(term, param_nr),
   further_layer_args = NULL,
   layer_args_names = NULL,
   units = as.integer(output_dim),
+  engine = "tf",
   ...
 )
 
-int_processor(term, data, output_dim, param_nr, controls)
+int_processor(term, data, output_dim, param_nr, controls, engine = "tf")
 
-lin_processor(term, data, output_dim, param_nr, controls)
+lin_processor(term, data, output_dim, param_nr, controls, engine = "tf")
 
-gam_processor(term, data, output_dim, param_nr, controls)
+ri_processor(term, data, output_dim, param_nr, controls, engine)
+
+gam_processor(term, data, output_dim, param_nr, controls, engine = "tf")
+
+autogam_processor(term, data, output_dim, param_nr, controls, engine = "tf")
+
+node_processor(
+  term,
+  data,
+  output_dim,
+  param_nr,
+  controls = NULL,
+  engine = "tf"
+)
 }
 \arguments{
 \item{term}{character; term in the formula}
 
 \item{output_dim}{integer; number of units in the layer}
 
-\item{param_nr}{integer; identifier for models with more 
+\item{param_nr}{integer; identifier for models with more
 than one additive predictor}
 
 \item{controls}{list; control arguments which allow
 to pass further information}
 
+\item{name}{character; name of layer.
+if NULL, \code{makelayername} will be used to create layer name}
+
 \item{layer_class}{a tf or keras layer function}
 
-\item{without_layer}{function to be used as 
+\item{without_layer}{function to be used as
 layer if \code{controls$with_layer} is FALSE}
-
-\item{name}{character; name of layer. 
-if NULL, \code{makelayername} will be used to create layer name}
 
 \item{further_layer_args}{named list; further arguments passed to
 the layer}
@@ -54,6 +71,8 @@ layer args will be used. Needs to be set for layers that do not
 provide the arguments of a default Dense layer.}
 
 \item{units}{integer; number of units for layer}
+
+\item{engine}{character; the engine which is used to setup the NN (tf or torch)}
 
 \item{...}{other keras layer parameters}
 

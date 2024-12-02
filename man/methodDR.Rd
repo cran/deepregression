@@ -49,7 +49,7 @@
   validation_data = NULL,
   validation_split = ifelse(is.null(validation_data), 0.1, 0),
   callbacks = list(),
-  convertfun = function(x) tf$constant(x, dtype = "float32"),
+  na_handler = na_omit_list,
   ...
 )
 
@@ -136,7 +136,7 @@ early stopping be trigged (default: "val_loss")}
 
 \item{callbacks}{a list of callbacks used for fitting}
 
-\item{convertfun}{function to convert R into Tensor object}
+\item{na_handler}{function to deal with NAs}
 
 \item{plot}{whether to plot the resulting losses in each fold}
 

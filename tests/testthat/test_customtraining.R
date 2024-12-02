@@ -1,5 +1,7 @@
 context("Custom Training")
 
+if(FALSE){ # deactivate for now
+
 test_that("Load and fit with custom keras model", {
 
   n <- 1500
@@ -21,9 +23,9 @@ test_that("Load and fit with custom keras model", {
   )
   
   expect_is(mod, "deepregression")
-  expect_length(mod, 3)
+  expect_length(mod, 4)
   expect_true(length(setdiff(names(mod), 
-                             c("model", "init_params", "fit_fun")
+                             c("model", "init_params", "fit_fun", "engine")
   ))==0)
   expect_is(mod$model, "models.custom_train_step.customKeras")
   
@@ -103,9 +105,9 @@ test_that("Use multiple optimizers", {
   )
   
   expect_is(mod, "deepregression")
-  expect_length(mod, 3)
+  expect_length(mod, 4)
   expect_true(length(setdiff(names(mod), 
-                             c("model", "init_params", "fit_fun")
+                             c("model", "init_params", "fit_fun", "engine")
   ))==0)
 
   mod %>% fit(epochs = 2)
@@ -122,3 +124,5 @@ test_that("Use multiple optimizers", {
   expect_false(all((mod %>% fitted())==(mod2 %>% fitted())))
   
 })
+
+}

@@ -10,12 +10,11 @@ deepregression(
   list_of_deep_models = NULL,
   family = "normal",
   data,
-  tf_seed = as.integer(1991 - 5 - 4),
+  seed = as.integer(1991 - 5 - 4),
   return_prepoc = FALSE,
-  subnetwork_builder = subnetwork_init,
-  model_builder = keras_dr,
-  fitting_function = utils::getFromNamespace("fit.keras.engine.training.Model",
-    "keras"),
+  subnetwork_builder = NULL,
+  model_builder = NULL,
+  fitting_function = NULL,
   additional_processors = list(),
   penalty_options = penalty_control(),
   orthog_options = orthog_control(),
@@ -23,6 +22,7 @@ deepregression(
   formula_options = form_control(),
   output_dim = 1L,
   verbose = FALSE,
+  engine = "tf",
   ...
 )
 }
@@ -50,21 +50,21 @@ be a custom distribution.}
 
 \item{data}{data.frame or named list with input features}
 
-\item{tf_seed}{a seed for TensorFlow (only works with R version >= 2.2.0)}
+\item{seed}{a seed for TensorFlow or Torch (only works with R version >= 2.2.0)}
 
 \item{return_prepoc}{logical; if TRUE only the pre-processed data and layers are returned 
 (default FALSE).}
 
 \item{subnetwork_builder}{function to build each subnetwork (network for each distribution parameter;
-per default \code{subnetwork_init}). Can also be a list of the same size as
+per default \code{NULL}). subnetwork builder will be chosen depending on the engine. Can also be a list of the same size as
 \code{list_of_formulas}.}
 
 \item{model_builder}{function to build the model based on additive predictors 
-(per default \code{keras_dr}). In order to work with the methods defined for the class 
-\code{deepregression}, the model should behave like a keras model}
+(per default \code{NULL}). model builder will be chosen depending on the engine.
+ In order to work with the methods defined for the class \code{deepregression}, the model should behave like a keras model}
 
 \item{fitting_function}{function to fit the instantiated model when calling \code{fit}. Per default
-the keras \code{fit} function.}
+the keras \code{NULL} function. fit will be chosen depending on the engine.}
 
 \item{additional_processors}{a named list with additional processors to convert the formula(s).
 Can have an attribute \code{"controls"} to pass additional controls}
@@ -81,6 +81,8 @@ Can have an attribute \code{"controls"} to pass additional controls}
 
 \item{verbose}{logical; whether to print progress of model initialization to console}
 
+\item{engine}{character; the engine which is used to setup the NN (tf or torch)}
+
 \item{...}{further arguments passed to the \code{model_builder} function}
 }
 \description{
@@ -92,7 +94,8 @@ library(deepregression)
 n <- 1000
 data = data.frame(matrix(rnorm(4*n), c(n,4)))
 colnames(data) <- c("x1","x2","x3","xa")
-formula <- ~ 1 + deep_model(x1,x2,x3) + s(xa) + x1
+formula <- ~ 1 + deep_model(x1,x2) + s(xa) + x1 + 
+  node(x3, n_trees = 2, n_layers = 2, tree_depth = 1)
 
 deep_model <- function(x) x \%>\%
 layer_dense(units = 32, activation = "relu", use_bias = FALSE) \%>\%

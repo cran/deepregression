@@ -1,3 +1,38 @@
+#' random effect layer
+#' 
+#' @param units integer; number of units
+#' @param ... arguments passed to TensorFlow layer
+#' @return layer object
+#' @export
+#' @rdname re_layers
+re_layer = function(units, ...) {
+  python_path <- system.file("python", package = "deepregression")
+  layers <- reticulate::import_from_path("layers", path = python_path)
+  layers$RELayer(units = units, ...)
+}
+
+#' trainable penalty layer
+#' 
+#' @param units integer; number of units
+#' @param ... arguments passed to TensorFlow layer
+#' @param P penalty matrix
+#' @return layer object
+#' @export
+#' @rdname re_layers
+pen_layer = function(units, P, ...) {
+  python_path <- system.file("python", package = "deepregression")
+  layers <- reticulate::import_from_path("psplines", path = python_path)
+  layers$CombinedModel(units = units, P = P, ...)
+}
+
+update_factor_callback = function(model, weightnr = -1L, ...) {
+  python_path <- system.file("python", package = "deepregression")
+  layers <- reticulate::import_from_path("psplines", path = python_path)
+  layers$UpdateMultiplicationFactorFromWeight(model = model, 
+                                              weightnr = weightnr, 
+                                              ...)
+}
+
 #' Hadamard-type layers
 #' 
 #' @param units integer; number of units
@@ -97,4 +132,18 @@ layer_sparse_conv_2d <- function(filters,
   python_path <- system.file("python", package = "deepregression")
   layers <- reticulate::import_from_path("layers", path = python_path)
   layers$SparseConv2D(filters = filters, kernel_size = kernel_size, lam = lam, depth = depth, ...)
+}
+
+#' Sparse Batch Normalization layer
+#' 
+#' @param lam regularization strength
+#' @param ... arguments passed to TensorFlow layer
+#' @return layer object
+#' @export
+#' 
+#' 
+layer_sparse_batch_normalization <- function(lam=NULL, ...) {
+  python_path <- system.file("python", package = "deepregression")
+  layers <- reticulate::import_from_path("layers", path = python_path)
+  layers$SparseBatchNormalization(gamma_sparsity = lam, ...)
 }
