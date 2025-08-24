@@ -141,7 +141,6 @@ import(reticulate)
 import(tensorflow)
 import(tfprobability)
 import(torch, except = as_iterator)
-
 importFrom(graphics,abline)
 importFrom(graphics,filled.contour)
 importFrom(graphics,matplot)

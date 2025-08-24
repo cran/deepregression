@@ -1,5 +1,5 @@
-7ad61174aa7f747c3e182a28ec4923f1 *DESCRIPTION
-6229427b84f9fc51023b723a5c758253 *NAMESPACE
+e6386f0e42affff13871be31a508fec1 *DESCRIPTION
+a10150b1390ff0c9d751a41b467c501f *NAMESPACE
 70d9782aeca9217f7383ff24a9d7d3b8 *R/controls.R
 6e627a330ac4165aa952d9c401b5f48c *R/cross-validation.R
 ea5cd4cf8c35d07ee3bc6a2200d9c628 *R/data_handler.R
@@ -28,7 +28,7 @@ d10bd810e593ad74c0255dd7f6c82499 *R/tf_helpers.R
 a77d9b39075f62ce8fc12cec63ca9995 *R/torch_helpers.R
 65cef5e0674056f6fc07dd2b3ca85c13 *R/utils-pipe.R
 ff1db3ff19c84d202ec682f6dde6f6f8 *R/zzz.R
-20c8d3f97d93e2e318a22508275b5a02 *build/partial.rdb
+b52aabe9a2757fc86742763db9dafc9b *build/partial.rdb
 959fcf4d884ffed47b5b1fc8c4d41bdd *inst/CITATION
 67fccee014f327530efedde4ab055918 *inst/python/activations/__init__.py
 d679e5b15fc170768ad569150dfe1ba8 *inst/python/activations/__pycache__/__init__.cpython-310.pyc
@@ -66,7 +66,7 @@ d8bce1512f174a685af620947a58828f *inst/python/layers/__pycache__/randomeffects.c
 743e4b27506ce08b7d800072bb673bcd *inst/python/layers/__pycache__/randomeffects.cpython-39.pyc
 833245a11d2e199b7ef39e1370ad9804 *inst/python/layers/bnlasso.py
 0255d00845c9c94cc4ab958b45cd592c *inst/python/layers/bnlasso_old.py
-70786bb0d3b276ce47d1837aa53fffc0 *inst/python/layers/convlasso.py
+e285ad751d80332370b61217ca5d1005 *inst/python/layers/convlasso.py
 455ab6a2a60be81d9a77d2afc26878bb *inst/python/layers/lasso.py
 aba9b5babfe85b58c0bb77ee480ac320 *inst/python/layers/orthogonalization.py
 061eaa89662d803c12e4c48cc09e2841 *inst/python/layers/randomeffects.py
