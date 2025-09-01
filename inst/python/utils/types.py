@@ -23,14 +23,21 @@ import tensorflow as tf
 from packaging.version import Version
 
 # TODO: Remove once https://github.com/tensorflow/tensorflow/issues/44613 is resolved
-if Version(tf.__version__).release >= Version("2.13").release:
-    # New versions of Keras require importing from `keras.src` when
-    # importing internal symbols.
-    from keras.src.engine import keras_tensor
-elif Version(tf.__version__).release >= Version("2.5").release:
-    from keras.engine import keras_tensor
-else:
-    from tensorflow.python.keras.engine import keras_tensor
+try:
+    # Keras 3+ (separate package)
+    from keras.src.engine import keras_tensor  # type: ignore[attr-defined]
+except Exception:
+    try:
+        # Public TF path present in many TF 2.x builds
+        from tensorflow.keras.engine import keras_tensor  # type: ignore[attr-defined]
+    except Exception:
+        try:
+            # Keras 2.x (separate package)
+            from keras.engine import keras_tensor  # type: ignore[attr-defined]
+        except Exception:
+            try:
+                # Older TF internals (≤2.4/2.5-ish)
+                from tensorflow.python.keras.engine import keras_tensor
 
 
 Number = Union[
