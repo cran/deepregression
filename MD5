@@ -1,4 +1,4 @@
-f82a0a92bf55deb92887b8827fc64a59 *DESCRIPTION
+aff2c7ba7a2aa8f92938cf6adce1031f *DESCRIPTION
 a10150b1390ff0c9d751a41b467c501f *NAMESPACE
 70d9782aeca9217f7383ff24a9d7d3b8 *R/controls.R
 6e627a330ac4165aa952d9c401b5f48c *R/cross-validation.R
@@ -105,7 +105,7 @@ c65d290910a6476f745ac9d9812e047a *inst/python/tffuns/__pycache__/__init__.cpytho
 63e138d1df852c193e3d725a6b95d1e3 *inst/python/utils/__init__.py
 596ffb23af0848415f734889ea9ab7f9 *inst/python/utils/__pycache__/__init__.cpython-310.pyc
 2e3e76c01073cd2d4eecc7aa3b8872fb *inst/python/utils/__pycache__/types.cpython-310.pyc
-1889660591e53e98cdc709de15ca6613 *inst/python/utils/types.py
+d72b37be44871f970058f34db08ac0ec *inst/python/utils/types.py
 513e7c2c5b08f7f9416e8ff286613f45 *man/check_and_install.Rd
 b3963ddae1af9b10f814e28ec5b50701 *man/check_input_args_fit.Rd
 71fce3cd67e302111d5538ddc970427c *man/choose_kernel_initializer_torch.Rd

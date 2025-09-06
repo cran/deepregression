@@ -38,7 +38,12 @@ except Exception:
             try:
                 # Older TF internals (≤2.4/2.5-ish)
                 from tensorflow.python.keras.engine import keras_tensor
-
+            except Exception:
+                # Last-resort stub so typing works without import-time failure
+                class _KT:
+                    class KerasTensor:  # noqa: N801
+                        ...
+                keras_tensor = _KT()  # type: ignore
 
 Number = Union[
     float,
